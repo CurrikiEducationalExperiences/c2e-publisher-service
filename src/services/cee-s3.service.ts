@@ -3,7 +3,7 @@ import {BindingScope, injectable} from '@loopback/core';
 
 @injectable({
   scope: BindingScope.TRANSIENT,
-  tags: {namespace: 'cee.services', name: 's3'}
+  tags: {namespace: 'services', name: 'cee-s3'}
 })
 export class CeeS3Service {
   private s3Client: S3Client;

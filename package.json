@@ -34,7 +34,8 @@
     "prestart": "npm run rebuild",
     "start": "node -r source-map-support/register .",
     "clean": "lb-clean dist *.tsbuildinfo .eslintcache",
-    "rebuild": "npm run clean && npm run build"
+    "rebuild": "npm run clean && npm run build",
+    "start:watch": "tsc-watch --target es2017 --outDir ./dist --onSuccess \"node .\""
   },
   "repository": {
     "type": "git",
@@ -56,18 +57,29 @@
     "@loopback/rest": "^13.1.1",
     "@loopback/rest-explorer": "^6.1.1",
     "@loopback/service-proxy": "^6.1.1",
+    "@types/adm-zip": "^0.5.5",
+    "@types/axios": "^0.14.0",
+    "@types/cheerio": "^0.22.35",
+    "adm-zip": "^0.5.10",
     "aws-sdk": "^2.1511.0",
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12",
     "dotenv": "^16.3.1",
+    "form-data": "^4.0.0",
     "loopback-connector-postgresql": "^7.0.0",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.20.1",
     "tslib": "^2.0.0"
   },
   "devDependencies": {
     "@loopback/build": "^10.1.1",
     "@loopback/eslint-config": "^14.0.2",
     "@loopback/testlab": "^6.1.1",
+    "@types/multer": "^1.4.11",
     "@types/node": "^16.18.38",
     "eslint": "^8.45.0",
     "source-map-support": "^0.5.21",
+    "tsc-watch": "^6.0.4",
     "typescript": "~5.1.6"
   }
 }

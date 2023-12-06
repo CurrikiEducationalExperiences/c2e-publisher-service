@@ -62,3 +62,9 @@ typings/
 
 # Cache used by TypeScript's incremental build
 *.tsbuildinfo
+
+package-lock.json
+public/c2e-media-storage/
+public/c2e-storage/
+temp/
+c2e-storage/
