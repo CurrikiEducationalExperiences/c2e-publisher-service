@@ -15,7 +15,8 @@ import {MySequence} from './sequence';
 export {ApplicationConfig};
 
 import {generateUniqueId} from "@loopback/context";
-import {FILE_UPLOAD_SERVICE, OPENAI_KEY, STORAGE_DIR, TEMP_DIR} from './keys';
+import * as fs from 'fs';
+import {AWS_CREDENTIALS_ACCESS_KEY_ID, AWS_CREDENTIALS_SECRET_ACCESS_KEY, AWS_REGION, AWS_S3_BUCKET, AWS_S3_BUCKET_URL, FILE_UPLOAD_SERVICE, MASTER_KEY, OPENAI_KEY, STORAGE_DIR, TEMP_DIR} from './keys';
 
 export class C2EPublisherServiceApplication extends BootMixin(
   ServiceMixin(RepositoryMixin(RestApplication)),
@@ -38,11 +39,10 @@ export class C2EPublisherServiceApplication extends BootMixin(
 
     this.projectRoot = __dirname;
 
+    this.initializeConstants();
+
     // Configure file upload with multer options
     this.configureFileUpload(options.fileStorageDirectory);
-
-    this.bind(OPENAI_KEY).to((process.env.OPENAI_KEY || ''));
-    this.bind(TEMP_DIR).to((process.env.TEMP_DIR || ''));
 
     // Customize @loopback/boot Booter Conventions here
     this.bootOptions = {
@@ -55,12 +55,38 @@ export class C2EPublisherServiceApplication extends BootMixin(
     };
   }
 
+  private initializeConstants(): void {
+    this.bind(OPENAI_KEY).to((process.env.OPENAI_KEY || ''));
+
+
+
+    // temporary
+    const tempPath = process.env.TEMP_DIR ? path.resolve(process.env.TEMP_DIR) : path.resolve('./tmp');
+    this.bind(TEMP_DIR).to(tempPath);
+    if (tempPath && !fs.existsSync(tempPath)) {
+      fs.mkdirSync(tempPath);
+    }
+
+    this.bind(AWS_CREDENTIALS_ACCESS_KEY_ID).to((process.env.AWS_CREDENTIALS_ACCESS_KEY_ID || ''));
+    this.bind(AWS_CREDENTIALS_SECRET_ACCESS_KEY).to((process.env.AWS_CREDENTIALS_SECRET_ACCESS_KEY || ''));
+    this.bind(AWS_REGION).to((process.env.AWS_REGION || ''));
+    this.bind(AWS_S3_BUCKET).to((process.env.AWS_S3_BUCKET || ''));
+    this.bind(AWS_S3_BUCKET_URL).to((process.env.AWS_S3_BUCKET_URL || ''));
+    this.bind(MASTER_KEY).to((process.env.MASTER_KEY || ''));
+  }
+
   /**
    * Configure `multer` options for file upload
    */
   protected configureFileUpload(destination?: string) {
     // Upload files to `dist/.sandbox` by default
-    const storagePath = process.env.STORAGE_DIR ? path.resolve(process.env.STORAGE_DIR) : path.join('./c2e-storage');
+    const storagePath = process.env.STORAGE_DIR ? path.resolve(process.env.STORAGE_DIR) : path.resolve('./c2e-storage');
+
+    // create a new storage if it doesn't exist.
+    if (storagePath && !fs.existsSync(storagePath)) {
+      fs.mkdirSync(storagePath);
+    }
+
     destination = destination ?? storagePath;
     this.bind(STORAGE_DIR).to(destination);
     const multerOptions: multer.Options = {

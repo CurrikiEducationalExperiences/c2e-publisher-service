@@ -18,12 +18,15 @@ interface NavPoint {
   children?: NavPoint[];
 }
 
-@injectable({scope: BindingScope.TRANSIENT})
+@injectable({
+  scope: BindingScope.TRANSIENT,
+  tags: {namespace: 'services', name: 'epub-util'}
+})
 export class EpubUtilService {
   constructor(
     @inject(OPENAI_KEY) private openaiKey: string,
     @inject(STORAGE_DIR) private storageDirectory: string,
-    @inject(TEMP_DIR) private tempDirector: string
+    @inject(TEMP_DIR) private tempDirectory: string
   ) { }
 
 
@@ -41,12 +44,13 @@ export class EpubUtilService {
   }
 
   async epubSplitter(epub: string, ceeMediaRepository: CeeMediaRepository, parentCeeMedia: CeeMedia, isbn: string): Promise<boolean> {
+    const tempDir = this.tempDirectory;
     const cheerio = require('cheerio');
     const tempId = "id" + Math.random().toString(16).slice(2);
     const file = epub;
     // Unzip to temp folder
     const zip = new AdmZip(file);
-    const tempBookPath = path.join(this.tempDirector, `/${tempId}/tempbook`);
+    const tempBookPath = path.join(tempDir, `/${tempId}/tempbook`);
     zip.extractAllTo(tempBookPath, true);
     // Read through the spine in content.opf
     const tocFolder = this.getTocDirectory(tempBookPath);
@@ -60,7 +64,7 @@ export class EpubUtilService {
 
     for (const idref of idrefArray) {
       // Create new copy
-      zip.extractAllTo(path.join(this.tempDirector, `/${tempId}/${idref}`), true);
+      zip.extractAllTo(path.join(tempDir, `/${tempId}/${idref}`), true);
 
       // Editing content.opf (content manifest)
       const $innerContent = cheerio.load(contentFileData, {xml: true});
@@ -116,7 +120,7 @@ export class EpubUtilService {
         }
       });
 
-      fs.writeFileSync(path.join(this.tempDirector, `/${tempId}/${idref}/${tocFolder}/content.opf`), $innerContent.html());
+      fs.writeFileSync(path.join(tempDir, `/${tempId}/${idref}/${tocFolder}/content.opf`), $innerContent.html());
 
       // Editing toc.ncx (table of contents)
       const $innerToc = cheerio.load(tocFileData, {xml: true});
@@ -127,12 +131,12 @@ export class EpubUtilService {
       const html = $innerToc.html(navpointContent[0].parent); // Getting chapter navpoint
       $innerToc('navPoint').remove(); // Removing all navpoints
       $innerToc(html).appendTo('navMap');
-      fs.writeFileSync(path.join(this.tempDirector, `/${tempId}/${idref}/${tocFolder}/toc.ncx`), $innerToc.html());
+      fs.writeFileSync(path.join(tempDir, `/${tempId}/${idref}/${tocFolder}/toc.ncx`), $innerToc.html());
 
       // Delete unused xhtml files and images
-      const allFiles: Array<FileType> = Object.assign(new Array<FileType>(), this.walk(path.join(this.tempDirector, `/${tempId}/${idref}/${tocFolder}`)));
+      const allFiles: Array<FileType> = Object.assign(new Array<FileType>(), this.walk(path.join(tempDir, `/${tempId}/${idref}/${tocFolder}`)));
       // const chapterXhtml = fs.readFileSync(path.join(publicPath, `temp/${idref}/OPS/${xhtmlFile}`), 'utf-8');
-      const chaptersXhtml = xhtmlFileAll.map(xhtmlFile => fs.readFileSync(path.join(this.tempDirector, `/${tempId}/${idref}/${tocFolder}/${xhtmlFile}`), 'utf-8')).join(' ');
+      const chaptersXhtml = xhtmlFileAll.map(xhtmlFile => fs.readFileSync(path.join(tempDir, `/${tempId}/${idref}/${tocFolder}/${xhtmlFile}`), 'utf-8')).join(' ');
       const removedFiles: Array<FileType> = [];
 
       for (const contentFile of allFiles) {
@@ -151,9 +155,9 @@ export class EpubUtilService {
 
       // Repackaging
       const zip2 = new AdmZip();
-      zip2.addLocalFile(path.join(this.tempDirector, `/${tempId}/${idref}/mimetype`));
-      zip2.addLocalFolder(path.join(this.tempDirector, `/${tempId}/${idref}/META-INF`), 'META-INF');
-      zip2.addLocalFolder(path.join(this.tempDirector, `/${tempId}/${idref}/${tocFolder}`), tocFolder);
+      zip2.addLocalFile(path.join(tempDir, `/${tempId}/${idref}/mimetype`));
+      zip2.addLocalFolder(path.join(tempDir, `/${tempId}/${idref}/META-INF`), 'META-INF');
+      zip2.addLocalFolder(path.join(tempDir, `/${tempId}/${idref}/${tocFolder}`), tocFolder);
 
       // read OPS/content.opf file and get html
       const contentOpf = zip2.getEntries().find((e: any) => e.entryName === `${tocFolder}/content.opf`);
@@ -184,7 +188,7 @@ export class EpubUtilService {
       const epubFile = idref + '-' + ceeMediaRecord.id + '.epub';
       zip2.writeZip(path.join(this.storageDirectory, `/${epubFile}`));
       // copy cover fie
-      const thumbnailPath = this.getThumbnailPath(path.join(this.tempDirector, `/${tempId}/${idref}/${tocFolder}`));
+      const thumbnailPath = this.getThumbnailPath(path.join(tempDir, `/${tempId}/${idref}/${tocFolder}`));
       const thumbnailFile = idref + '-' + ceeMediaRecord.id + '_thumbnail.' + thumbnailPath.split('.')[1];
       fs.copyFileSync(thumbnailPath, path.join(this.storageDirectory, `/${thumbnailFile}`));
       await ceeMediaRepository.updateById(ceeMediaRecord.id, {
@@ -195,7 +199,7 @@ export class EpubUtilService {
     };
 
     // Cleanup
-    fs.rmSync(path.join(this.tempDirector, `/${tempId}`), {recursive: true, maxRetries: 10});
+    fs.rmSync(path.join(tempDir, `/${tempId}`), {recursive: true, maxRetries: 10});
     return true;
   };
 
@@ -276,12 +280,13 @@ export class EpubUtilService {
   };
 
   async generateEpubDescription(epubPath: string, model: string, maxContextChars: number): Promise<string> {
+    const tempDir = this.tempDirectory;
     const validModels = ["gpt-4", "gpt-4-1106-preview"];
     if (validModels.indexOf(model) === -1) return `EINMOD Model is not valid: ${model}`;
 
     const tempId = "id" + Math.random().toString(16).slice(2);
     const fullEpubPath = `${this.storageDirectory}/${epubPath}`;
-    const tempBookPath = `${this.tempDirector}/${tempId}`;
+    const tempBookPath = `${tempDir}/${tempId}`;
 
     if (!fs.existsSync(fullEpubPath)) return `ENOFILE File doesn't exist: ${fullEpubPath}`;
     // Unzip to temp folder

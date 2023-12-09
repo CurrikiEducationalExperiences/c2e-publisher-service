@@ -11,17 +11,18 @@ import {
 } from '@loopback/rest';
 import * as path from 'path';
 import {FileUploadResponse} from "../cee/types";
-import {createEpubCeeMedia, epubSplitter} from '../cee/utils';
-import {STORAGE_DIR} from '../config';
-import {FILE_UPLOAD_SERVICE} from '../keys';
-import {CeeMediaRepository, CeeRepository} from '../repositories';
+import {FILE_UPLOAD_SERVICE, STORAGE_DIR} from '../keys';
+import {CeeMediaRepository} from '../repositories';
+import {EpubUtilService} from '../services';
 import {FileUploadHandler} from '../types';
 
 export class CeeMediaEpubController {
   constructor(
     @repository(CeeMediaRepository)
     public ceeMediaRepository: CeeMediaRepository,
-    @inject(FILE_UPLOAD_SERVICE) private handler: FileUploadHandler
+    @inject(FILE_UPLOAD_SERVICE) private handler: FileUploadHandler,
+    @inject(STORAGE_DIR) private storageDir: string,
+    @inject('services.epub-util') private epubUtilService: EpubUtilService
   ) { }
 
   @post('/c2e-media/create-epubs', {
@@ -41,20 +42,27 @@ export class CeeMediaEpubController {
   async create(
     @requestBody.file()
     request: Request,
-    @inject(RestBindings.Http.RESPONSE) response: Response,
-    @repository(CeeRepository) ceeRepository: CeeRepository,
+    @inject(RestBindings.Http.RESPONSE) response: Response
   ): Promise<object> {
     return new Promise<object>((resolve, reject) => {
-      this.handler(request, response, (err: unknown) => {
+      this.handler(request, response, async (err: unknown) => {
         if (err) reject(err);
         else {
-          resolve(CeeMediaEpubController.getFilesAndFields(request, ceeRepository, this.ceeMediaRepository));
+          resolve(this.getFilesAndFields(
+            request,
+            this.ceeMediaRepository,
+            this.storageDir
+          ));
         }
       });
     });
   }
 
-  private static async getFilesAndFields(request: Request, ceeRepository: CeeRepository, ceeMediaRepository: CeeMediaRepository) {
+  private async getFilesAndFields(
+    request: Request,
+    ceeMediaRepository: CeeMediaRepository,
+    storageDirectory: string
+  ) {
     const uploadedFiles = request.files;
     const mapper = (f: globalThis.Express.Multer.File) => ({
       fieldname: f.fieldname,
@@ -77,9 +85,9 @@ export class CeeMediaEpubController {
     const c2eMediaMimetype = filesList.length > 0 && filesList[0].mimetype ? filesList[0].mimetype : undefined;
     const collection = ('collection' in request.body) ? request.body.collection : 'C2E Collection';
     if (c2eMediaFile && c2eMediaMimetype && ('isbn' in request.body)) {
-      const epubPath = path.join(STORAGE_DIR, '/', filesList[0].originalname);
-      const ceeMedia = await createEpubCeeMedia(epubPath, ceeMediaRepository, filesList[0].originalname, request.body.isbn, collection);
-      await epubSplitter(epubPath, ceeMediaRepository, ceeMedia, request.body.isbn);
+      const epubPath = path.join(storageDirectory, '/', filesList[0].originalname);
+      const ceeMedia = await this.epubUtilService.createEpubCeeMedia(epubPath, ceeMediaRepository, filesList[0].originalname, request.body.isbn, collection);
+      await this.epubUtilService.epubSplitter(epubPath, ceeMediaRepository, ceeMedia, request.body.isbn);
     }
     return {files, fields: request.body};
   }

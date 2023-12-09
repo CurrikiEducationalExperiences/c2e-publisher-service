@@ -18,10 +18,10 @@ import {
   requestBody,
   response
 } from '@loopback/rest';
-import {generateEpubDescription} from '../cee/utils/epub-util';
 import {FILE_UPLOAD_SERVICE} from '../keys';
 import {CeeMedia} from '../models';
 import {CeeMediaRepository, CeeRepository} from '../repositories';
+import {EpubUtilService} from '../services';
 import {FileUploadHandler} from '../types';
 
 export class CeeMediaController {
@@ -30,7 +30,8 @@ export class CeeMediaController {
     public ceeMediaRepository: CeeMediaRepository,
     @repository(CeeRepository)
     public ceeRepository: CeeRepository,
-    @inject(FILE_UPLOAD_SERVICE) private handler: FileUploadHandler
+    @inject(FILE_UPLOAD_SERVICE) private handler: FileUploadHandler,
+    @inject('services.epub-util') private epubUtilService: EpubUtilService
   ) { }
 
   @post('/c2e-media')
@@ -179,7 +180,7 @@ export class CeeMediaController {
     if (!Array.isArray(results)) return [];
 
     for (const row of results) {
-      const description = await generateEpubDescription(row.resource, model, maxContext);
+      const description = await this.epubUtilService.generateEpubDescription(row.resource, model, maxContext);
       if (description.indexOf('ENOFILE') !== -1) {
         await this.ceeMediaRepository.updateById(row.id, {description: 'ENOFILE'});
       } else {
